@@ -1,173 +1,181 @@
 <template>
   <ion-page>
 
-    <!-- ── HEADER ── -->
     <ion-header>
       <ion-toolbar color="primary">
         <ion-title>📷 GalleryApp</ion-title>
         <ion-buttons slot="end">
-          <ion-button @click="chooseSource">
-            <ion-icon :icon="addOutline" slot="icon-only" />
+          <ion-button @click="currentView = 'gallery'" fill="clear">
+            <ion-icon :icon="imagesOutline" slot="start" style="color:white;" />
+            <span style="color: white; font-size: 13px; font-weight: 500;">My Photos</span>
           </ion-button>
         </ion-buttons>
       </ion-toolbar>
     </ion-header>
 
-    <ion-content>
+    <ion-content style="--background: #000;">
 
-      <!-- ── LOADING ── -->
-      <div v-if="loading" class="ion-text-center ion-padding">
-        <ion-spinner name="crescent" />
-        <p>Loading photos...</p>
-      </div>
+      <div v-if="currentView === 'camera'" style="height: 100%; display: flex; flex-direction: column;">
 
-      <!-- ── EMPTY STATE ── -->
-      <div v-else-if="photos.length === 0" class="ion-text-center ion-padding" style="margin-top: 60px;">
-        <ion-icon :icon="imagesOutline" style="font-size: 72px; color: #ccc;" />
-        <h3 style="color: #999; margin-top: 12px;">No photos yet</h3>
-        <p style="color: #bbb; font-size: 14px;">Tap the + button to add your first photo</p>
-        <ion-button @click="chooseSource" style="margin-top: 16px;">
-          <ion-icon :icon="cameraOutline" slot="start" />
-          Add Photo
-        </ion-button>
-      </div>
-
-      <!-- ── PHOTO GRID ── -->
-      <div v-else style="padding: 4px;">
-
-        <!-- Stats bar -->
-        <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 12px;">
-          <span style="font-size: 13px; color: gray;">{{ photos.length }} photo{{ photos.length !== 1 ? 's' : '' }}</span>
-          <ion-button fill="clear" size="small" @click="chooseSource">
-            <ion-icon :icon="addOutline" slot="start" />
-            Add
-          </ion-button>
+        <div style="flex: 1; background: #111; display: flex; align-items: center; justify-content: center; position: relative;">
+          <video ref="videoEl" autoplay playsinline muted style="width: 100%; height: 100%; object-fit: cover;" />
+          <div v-if="cameraError" style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; text-align: center; padding: 24px;">
+            <ion-icon :icon="cameraOutline" style="font-size: 64px; color: #555; margin-bottom: 16px;" />
+            <p style="color: #888; font-size: 14px;">{{ cameraError }}</p>
+          </div>
+          <canvas ref="canvasEl" style="display: none;" />
         </div>
 
-        <!-- Grid -->
-        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px;">
-          <div
-            v-for="photo in photos"
-            :key="photo.id"
-            style="aspect-ratio: 1; overflow: hidden; cursor: pointer; position: relative; background: #1a1a2e;"
-            @click="openPhoto(photo)"
-          >
-            <img
-              :src="photo.imageBase64"
-              style="width: 100%; height: 100%; object-fit: cover;"
-              :alt="photo.caption || 'Photo'"
-            />
-            <!-- Caption overlay if exists -->
-            <div
-              v-if="photo.caption"
-              style="position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(transparent, rgba(0,0,0,0.7)); padding: 16px 6px 4px; color: white; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
-            >
-              {{ photo.caption }}
+        <div style="background: #000; padding: 24px 16px 36px; display: flex; align-items: center; justify-content: space-around;">
+
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 6px;" @click="pickFromGallery">
+            <div style="width: 52px; height: 52px; border-radius: 10px; background: #222; display: flex; align-items: center; justify-content: center; cursor: pointer; border: 1.5px solid #444;">
+              <img v-if="lastPhoto" :src="lastPhoto" style="width: 100%; height: 100%; object-fit: cover; border-radius: 8px;" />
+              <ion-icon v-else :icon="imagesOutline" style="font-size: 24px; color: #888;" />
+            </div>
+            <span style="font-size: 10px; color: #666;">Gallery</span>
+          </div>
+
+          <div @click="takePhoto" style="cursor: pointer;">
+            <div style="width: 76px; height: 76px; border-radius: 50%; border: 4px solid white; display: flex; align-items: center; justify-content: center;">
+              <div style="width: 62px; height: 62px; border-radius: 50%; background: white;" />
             </div>
           </div>
+
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 6px;" @click="flipCamera">
+            <div style="width: 52px; height: 52px; border-radius: 50%; background: #222; display: flex; align-items: center; justify-content: center; cursor: pointer; border: 1.5px solid #444;">
+              <ion-icon :icon="refreshOutline" style="font-size: 24px; color: #ccc;" />
+            </div>
+            <span style="font-size: 10px; color: #666;">Flip</span>
+          </div>
+
         </div>
+
+        <input ref="fileInput" type="file" accept="image/*" style="display: none;" @change="handleFileSelected" />
 
       </div>
 
-      <!-- ── FAB BUTTON ── -->
-      <ion-fab vertical="bottom" horizontal="end" slot="fixed">
-        <ion-fab-button @click="chooseSource" color="primary">
-          <ion-icon :icon="cameraOutline" />
-        </ion-fab-button>
-      </ion-fab>
+      <div v-else-if="currentView === 'preview'" style="height: 100%; display: flex; flex-direction: column; background: #000;">
 
-    </ion-content>
+        <div style="flex: 1; display: flex; align-items: center; justify-content: center; background: #000;">
+          <img :src="previewImage" style="max-width: 100%; max-height: 100%; object-fit: contain;" />
+        </div>
 
-    <!-- ═══════════════════════════════════════════
-         FULL SCREEN PHOTO MODAL
-    ═══════════════════════════════════════════ -->
-    <ion-modal :is-open="showDetail" @did-dismiss="closeDetail">
-      <ion-header>
-        <ion-toolbar color="dark">
-          <ion-buttons slot="start">
-            <ion-button @click="closeDetail" color="light">
-              <ion-icon :icon="arrowBackOutline" slot="icon-only" />
-            </ion-button>
-          </ion-buttons>
-          <ion-title color="light" style="font-size: 15px;">
-            {{ selectedPhoto?.caption || 'Photo' }}
-          </ion-title>
-          <ion-buttons slot="end">
-            <ion-button color="danger" @click="deletePhoto(selectedPhoto?.id)">
-              <ion-icon :icon="trashOutline" slot="icon-only" />
-            </ion-button>
-          </ion-buttons>
-        </ion-toolbar>
-      </ion-header>
-
-      <ion-content v-if="selectedPhoto" style="--background: #000;">
-
-        <!-- Full size image -->
-        <div style="display: flex; align-items: center; justify-content: center; min-height: 55vh; background: #000;">
-          <img
-            :src="selectedPhoto.imageBase64"
-            style="max-width: 100%; max-height: 60vh; object-fit: contain;"
-            :alt="selectedPhoto.caption || 'Photo'"
+        <div style="background: #111; padding: 12px 16px;">
+          <input
+            v-model="captionInput"
+            placeholder="Add a caption... (optional)"
+            style="width: 100%; background: #222; border: none; border-radius: 8px; padding: 10px 14px; color: white; font-size: 14px; outline: none;"
           />
         </div>
 
-        <!-- Photo details -->
-        <div style="background: #111; color: white; padding: 16px;">
-          <p style="color: #aaa; font-size: 12px; margin: 0 0 8px;">📅 {{ selectedPhoto.date }}</p>
+        <div style="background: #000; padding: 16px 24px 36px; display: flex; gap: 12px;">
+          <ion-button expand="block" fill="outline" color="light" style="flex: 1;" @click="discardPhoto">
+            <ion-icon :icon="closeOutline" slot="start" />
+            Retake
+          </ion-button>
+          <ion-button expand="block" color="primary" style="flex: 1;" @click="savePhoto" :disabled="saving">
+            <ion-icon :icon="checkmarkOutline" slot="start" />
+            {{ saving ? 'Saving...' : 'Save' }}
+          </ion-button>
+        </div>
 
-          <!-- Caption display / edit -->
-          <div v-if="!editingCaption">
-            <p style="font-size: 16px; margin: 0 0 12px; color: white;">
-              {{ selectedPhoto.caption || 'No caption' }}
-            </p>
-            <ion-button fill="outline" color="light" size="small" @click="startEditCaption">
-              <ion-icon :icon="createOutline" slot="start" />
-              {{ selectedPhoto.caption ? 'Edit Caption' : 'Add Caption' }}
-            </ion-button>
-          </div>
+      </div>
 
-          <!-- Caption edit form -->
-          <div v-else style="margin-top: 8px;">
-            <ion-item style="--background: #222; --color: white; border-radius: 8px; margin-bottom: 10px;">
-              <ion-label position="stacked" style="color: #aaa;">Caption</ion-label>
-              <ion-input v-model="captionInput" placeholder="Add a caption..." style="color: white;" />
-            </ion-item>
-            <div style="display: flex; gap: 8px;">
-              <ion-button size="small" @click="saveCaption">Save</ion-button>
-              <ion-button size="small" fill="outline" color="medium" @click="editingCaption = false">Cancel</ion-button>
-            </div>
+      <div v-else-if="currentView === 'gallery'" style="background: #000; min-height: 100%;">
+
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 16px;">
+          <ion-button fill="clear" @click="currentView = 'camera'">
+            <ion-icon :icon="cameraOutline" slot="start" style="color: white;" />
+            <span style="color: white; font-size: 13px;">Camera</span>
+          </ion-button>
+          <span style="color: #888; font-size: 13px;">{{ photos.length }} photo{{ photos.length !== 1 ? 's' : '' }}</span>
+        </div>
+
+        <div v-if="loading" class="ion-text-center ion-padding">
+          <ion-spinner name="crescent" color="light" />
+          <p style="color: #666;">Loading...</p>
+        </div>
+
+        <div v-else-if="photos.length === 0" style="text-align: center; padding: 60px 24px;">
+          <ion-icon :icon="imagesOutline" style="font-size: 64px; color: #333;" />
+          <p style="color: #555; margin-top: 12px;">No photos yet</p>
+          <ion-button fill="outline" color="light" @click="currentView = 'camera'" style="margin-top: 12px;">
+            Take your first photo
+          </ion-button>
+        </div>
+
+        <div v-else style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px;">
+          <div
+            v-for="photo in photos"
+            :key="photo.id"
+            style="aspect-ratio: 1; overflow: hidden; cursor: pointer; position: relative; background: #1a1a1a;"
+            @click="openPhoto(photo)"
+          >
+            <img :src="photo.imageBase64" style="width: 100%; height: 100%; object-fit: cover;" :alt="photo.caption || 'Photo'" loading="lazy" />
           </div>
         </div>
 
-      </ion-content>
-    </ion-modal>
+      </div>
 
+      <div v-else-if="currentView === 'fullscreen' && selectedPhoto" style="height: 100%; background: #000; display: flex; flex-direction: column;">
+
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: #000;">
+          <ion-button fill="clear" @click="currentView = 'gallery'">
+            <ion-icon :icon="arrowBackOutline" style="color: white;" slot="icon-only" />
+          </ion-button>
+          <span style="color: #888; font-size: 12px;">{{ selectedPhoto.date }}</span>
+          <ion-button fill="clear" color="danger" @click="deletePhoto(selectedPhoto.id)">
+            <ion-icon :icon="trashOutline" slot="icon-only" />
+          </ion-button>
+        </div>
+
+        <div style="flex: 1; display: flex; align-items: center; justify-content: center;">
+          <img :src="selectedPhoto.imageBase64" style="max-width: 100%; max-height: 100%; object-fit: contain;" />
+        </div>
+
+        <div style="background: #111; padding: 16px;">
+          <div v-if="!editingCaption" style="display: flex; align-items: center; justify-content: space-between;">
+            <p style="color: white; font-size: 15px; margin: 0; flex: 1;">
+              {{ selectedPhoto.caption || 'No caption' }}
+            </p>
+            <ion-button fill="clear" size="small" @click="startEditCaption">
+              <ion-icon :icon="createOutline" style="color: #888;" slot="icon-only" />
+            </ion-button>
+          </div>
+          <div v-else style="display: flex; gap: 8px; align-items: center;">
+            <input
+              v-model="captionEditInput"
+              style="flex: 1; background: #222; border: none; border-radius: 8px; padding: 10px 12px; color: white; font-size: 14px; outline: none;"
+              placeholder="Add a caption..."
+              @keyup.enter="saveEditCaption"
+            />
+            <ion-button size="small" @click="saveEditCaption">Save</ion-button>
+            <ion-button size="small" fill="clear" color="medium" @click="editingCaption = false">✕</ion-button>
+          </div>
+        </div>
+
+      </div>
+
+    </ion-content>
   </ion-page>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onUnmounted, watch } from 'vue';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent,
   IonButtons, IonButton, IonIcon, IonSpinner,
-  IonFab, IonFabButton, IonModal, IonItem, IonLabel, IonInput,
-  actionSheetController, alertController, toastController
+  alertController, toastController
 } from '@ionic/vue';
 import {
-  addOutline, cameraOutline, imagesOutline,
-  arrowBackOutline, trashOutline, createOutline
+  cameraOutline, imagesOutline, refreshOutline,
+  closeOutline, checkmarkOutline, arrowBackOutline,
+  trashOutline, createOutline
 } from 'ionicons/icons';
 
-import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
-
 import { db } from '@/firebase';
-import {
-  ref as dbRef,
-  push,
-  onValue,
-  update,
-  remove
-} from 'firebase/database';
+import { ref as dbRef, push, onValue, update, remove } from 'firebase/database';
 
 interface Photo {
   id: string;
@@ -176,143 +184,153 @@ interface Photo {
   date: string;
 }
 
+const currentView = ref<'camera' | 'preview' | 'gallery' | 'fullscreen'>('camera');
 const photos = ref<Photo[]>([]);
 const loading = ref(true);
-const showDetail = ref(false);
+const saving = ref(false);
+
+const videoEl = ref<HTMLVideoElement | null>(null);
+const canvasEl = ref<HTMLCanvasElement | null>(null);
+const fileInput = ref<HTMLInputElement | null>(null);
+const cameraError = ref('');
+const currentFacingMode = ref<'environment' | 'user'>('environment');
+let stream: MediaStream | null = null;
+
+const previewImage = ref('');
+const captionInput = ref('');
+const lastPhoto = ref('');
 const selectedPhoto = ref<Photo | null>(null);
 const editingCaption = ref(false);
-const captionInput = ref('');
+const captionEditInput = ref('');
 
-onMounted(() => {
-  const photosRef = dbRef(db, 'photos');
-  onValue(photosRef, (snapshot) => {
-    const data = snapshot.val();
-    if (data) {
-      photos.value = Object.entries(data)
-        .map(([id, val]: [string, any]) => ({ id, ...val }))
-        .reverse(); // newest first
-    } else {
-      photos.value = [];
-    }
-    loading.value = false;
-  });
-});
-
-async function chooseSource() {
-  const actionSheet = await actionSheetController.create({
-    header: 'Add Photo',
-    buttons: [
-      {
-        text: 'Take Photo',
-        icon: cameraOutline,
-        handler: () => takePhoto(CameraSource.Camera)
-      },
-      {
-        text: 'Choose from Gallery',
-        icon: imagesOutline,
-        handler: () => takePhoto(CameraSource.Photos)
-      },
-      {
-        text: 'Cancel',
-        role: 'cancel'
-      }
-    ]
-  });
-  await actionSheet.present();
-}
-
-async function takePhoto(source: CameraSource) {
+async function startCamera() {
+  cameraError.value = '';
   try {
-    const image = await Camera.getPhoto({
-      quality: 80,
-      allowEditing: false,
-      resultType: CameraResultType.DataUrl,
-      source: source
+    if (stream) {
+      stream.getTracks().forEach(t => t.stop());
+    }
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: currentFacingMode.value },
+      audio: false
     });
-
-    if (!image.dataUrl) return;
-
-    // Ask for caption
-    const alert = await alertController.create({
-      header: 'Add a Caption',
-      message: 'Optional — describe this photo',
-      inputs: [
-        {
-          name: 'caption',
-          type: 'text',
-          placeholder: 'e.g. Sunset at the beach'
-        }
-      ],
-      buttons: [
-        {
-          text: 'Skip',
-          handler: async () => {
-            await savePhoto(image.dataUrl!, '');
-          }
-        },
-        {
-          text: 'Save',
-          handler: async (data) => {
-            await savePhoto(image.dataUrl!, data.caption || '');
-          }
-        }
-      ]
-    });
-    await alert.present();
-
+    if (videoEl.value) {
+      videoEl.value.srcObject = stream;
+    }
   } catch (err: any) {
-    // User cancelled — do nothing
-    if (err?.message?.includes('cancelled') || err?.message?.includes('canceled')) return;
-    showToast('Could not access camera. Check permissions.', 'danger');
+    if (err.name === 'NotAllowedError') {
+      cameraError.value = 'Camera permission denied. Please allow camera access and refresh.';
+    } else if (err.name === 'NotFoundError') {
+      cameraError.value = 'No camera found on this device.';
+    } else {
+      cameraError.value = 'Could not start camera. Try using the gallery button instead.';
+    }
   }
 }
 
-async function savePhoto(imageBase64: string, caption: string) {
-  const photoData = {
-    imageBase64,
-    caption: caption.trim(),
-    date: new Date().toLocaleDateString('en-PH', {
-      year: 'numeric', month: 'short', day: 'numeric'
-    })
-  };
+function stopCamera() {
+  if (stream) {
+    stream.getTracks().forEach(t => t.stop());
+    stream = null;
+  }
+}
 
-  await push(dbRef(db, 'photos'), photoData);
-  showToast('Photo saved!', 'success');
+async function flipCamera() {
+  currentFacingMode.value = currentFacingMode.value === 'environment' ? 'user' : 'environment';
+  await startCamera();
+}
+
+function takePhoto() {
+  if (!videoEl.value || !canvasEl.value) return;
+  const video = videoEl.value;
+  const canvas = canvasEl.value;
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  previewImage.value = canvas.toDataURL('image/jpeg', 0.85);
+  captionInput.value = '';
+  stopCamera();
+  currentView.value = 'preview';
+}
+
+function pickFromGallery() {
+  fileInput.value?.click();
+}
+
+function handleFileSelected(event: Event) {
+  const file = (event.target as HTMLInputElement).files?.[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    previewImage.value = e.target?.result as string;
+    captionInput.value = '';
+    stopCamera();
+    currentView.value = 'preview';
+  };
+  reader.readAsDataURL(file);
+  (event.target as HTMLInputElement).value = '';
+}
+
+async function discardPhoto() {
+  previewImage.value = '';
+  captionInput.value = '';
+  currentView.value = 'camera';
+  await startCamera();
+}
+
+async function savePhoto() {
+  if (!previewImage.value) return;
+  saving.value = true;
+  try {
+    const photoData = {
+      imageBase64: previewImage.value,
+      caption: captionInput.value.trim(),
+      date: new Date().toLocaleDateString('en-PH', {
+        year: 'numeric', month: 'short', day: 'numeric'
+      })
+    };
+    await push(dbRef(db, 'photos'), photoData);
+    lastPhoto.value = previewImage.value;
+    previewImage.value = '';
+    captionInput.value = '';
+    showToast('Photo saved!', 'success');
+    currentView.value = 'camera';
+    await startCamera();
+  } catch (err) {
+    showToast('Failed to save photo.', 'danger');
+  } finally {
+    saving.value = false;
+  }
 }
 
 function openPhoto(photo: Photo) {
   selectedPhoto.value = photo;
   editingCaption.value = false;
-  captionInput.value = photo.caption || '';
-  showDetail.value = true;
-}
-
-function closeDetail() {
-  showDetail.value = false;
-  selectedPhoto.value = null;
-  editingCaption.value = false;
+  captionEditInput.value = photo.caption || '';
+  stopCamera();
+  currentView.value = 'fullscreen';
 }
 
 function startEditCaption() {
-  captionInput.value = selectedPhoto.value?.caption || '';
+  captionEditInput.value = selectedPhoto.value?.caption || '';
   editingCaption.value = true;
 }
 
-async function saveCaption() {
+async function saveEditCaption() {
   if (!selectedPhoto.value) return;
   await update(dbRef(db, `photos/${selectedPhoto.value.id}`), {
-    caption: captionInput.value.trim()
+    caption: captionEditInput.value.trim()
   });
-  selectedPhoto.value.caption = captionInput.value.trim();
+  selectedPhoto.value.caption = captionEditInput.value.trim();
   editingCaption.value = false;
-  showToast('Caption updated!', 'success');
+  showToast('Caption saved!', 'success');
 }
 
-async function deletePhoto(id?: string) {
-  if (!id) return;
+async function deletePhoto(id: string) {
   const alert = await alertController.create({
     header: 'Delete Photo',
-    message: 'Are you sure you want to delete this photo?',
+    message: 'Are you sure?',
     buttons: [
       { text: 'Cancel', role: 'cancel' },
       {
@@ -320,8 +338,8 @@ async function deletePhoto(id?: string) {
         role: 'destructive',
         handler: async () => {
           await remove(dbRef(db, `photos/${id}`));
-          closeDetail();
-          showToast('Photo deleted.', 'danger');
+          currentView.value = 'gallery';
+          showToast('Deleted.', 'danger');
         }
       }
     ]
@@ -329,12 +347,39 @@ async function deletePhoto(id?: string) {
   await alert.present();
 }
 
+watch(currentView, async (newView, oldView) => {
+  if (newView === 'camera') {
+    await startCamera();
+  } else if (oldView === 'camera' && newView !== 'preview') {
+    stopCamera();
+  }
+});
+
+onMounted(async () => {
+  await startCamera();
+  const photosRef = dbRef(db, 'photos');
+  onValue(photosRef, (snapshot) => {
+    const data = snapshot.val();
+    if (data) {
+      photos.value = Object.entries(data)
+        .map(([id, val]: [string, any]) => ({ id, ...val }))
+        .reverse();
+      lastPhoto.value = photos.value[0]?.imageBase64 || '';
+    } else {
+      photos.value = [];
+      lastPhoto.value = '';
+    }
+    loading.value = false;
+  });
+});
+
+onUnmounted(() => {
+  stopCamera();
+});
+
 async function showToast(message: string, color: string) {
   const toast = await toastController.create({
-    message,
-    duration: 2000,
-    color,
-    position: 'bottom'
+    message, duration: 2000, color, position: 'bottom'
   });
   await toast.present();
 }
